@@ -1,72 +1,58 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <stdbool.h>
-
+#include <stdlib.h>
+#include <stdio.h>
 
 #define N 9
-#define NUMBER_TO_SEARCH 3
+#define CHAR_TO_SEARCH 'A'
 
 typedef struct{
     int column_number;
 } parameters;
 
-bool number_is_found_bool = false;
-pthread_cond_t number_is_found_cond;
-int matrix[N][N];
-
-void* check_column_n(void *args){
-    int n = *(int *)args;    
-    for(int row = 0; row < N; row++){
-        int current_number = matrix[row][n];
-        if(current_number == NUMBER_TO_SEARCH){
-            // Lock
-            number_is_found_bool = true;
-            pthread_cond_signal(&number_is_found_cond); 
-        }
-    }
-}
+bool char_is_found_bool = false;
+pthread_mutex_t char_is_found_mutex;
+char matrix[N][N] = {
+    {'G', 'X', 'M', 'B', 'J', 'L', 'Q', 'T', 'R'},
+    {'P', 'E', 'K', 'N', 'F', 'Z', 'S', 'Y', 'W'},
+    {'V', 'U', 'D', 'A', 'O', 'C', 'H', 'I', 'B'},
+    {'L', 'Q', 'G', 'W', 'X', 'P', 'R', 'K', 'S'},
+    {'F', 'T', 'C', 'M', 'E', 'J', 'U', 'V', 'F'},
+    {'N', 'H', 'Y', 'F', 'R', 'G', 'T', 'L', 'O'},
+    {'S', 'V', 'Z', 'C', 'D', 'F', 'B', 'W', 'U'},
+    {'I', 'P', 'L', 'R', 'N', 'K', 'X', 'G', 'J'},
+    {'O', 'J', 'F', 'Q', 'H', 'Y', 'M', 'E', 'D'}
+};
 
 void* check_column_n(void *args) {
     int n = *(int *)args;
 
     for (int row = 0; row < N; row++) {
-        pthread_mutex_lock(&number_is_found_mutex);
 
         // Check if another thread already found the number
-        if (number_is_found_bool) {
-            pthread_mutex_unlock(&number_is_found_mutex);
-            return NULL; // Stop searching
-        }
-
-        int current_number = matrix[row][n];
-        if (current_number == NUMBER_TO_SEARCH) {
-            number_is_found_bool = true;
-            pthread_cond_broadcast(&number_is_found_cond); // Notify all threads
-            pthread_mutex_unlock(&number_is_found_mutex);
+        if (char_is_found_bool) {
             return NULL;
         }
 
-        pthread_mutex_unlock(&number_is_found_mutex);
+        char current_char = matrix[row][n];
+        if (current_char == CHAR_TO_SEARCH){
+            pthread_mutex_lock(&char_is_found_mutex);
+            char_is_found_bool = true;
+            printf("Number char in column %d\n", n);
+            pthread_mutex_unlock(&char_is_found_mutex);
+            return NULL;
+        }
     }
     return NULL;
 }
 
 
 int main(){    
-    pthread_t threads[N];
-    int threads_numbers[N];
+    pthread_t threads[N];    
 
     for(int i = 0; i < N; i++){
-        for(int j = 0; j < N; j++){
-            matrix[i][j] = i + j;
-        }
-        threads_numbers[i] = i;
-    }
-    
-    pthread_cond_init(&number_is_found_cond, NULL);
-
-    for(int i = 0; i < N; i++){
-        if(pthread_create(&threads[i], NULL, check_column_n, (void *) &threads_numbers[i]) != 0){
+        if(pthread_create(&threads[i], NULL, check_column_n, (void *) &i) != 0){
             printf("Failed to create thread");
             exit(0);
         }
@@ -78,8 +64,12 @@ int main(){
             exit(0);
         }
     }
+    pthread_mutex_destroy(&char_is_found_mutex);
 
-    pthread_cond_destroy(&number_is_found_cond);
+    if (!char_is_found_bool){
+        printf("The character isn't in the matrix");
+    }
+    
 
     return 0;
 }
